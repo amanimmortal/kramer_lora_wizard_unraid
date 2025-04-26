@@ -143,4 +143,3 @@ selected_tags.csv # Assuming this is generated
 
 # Docker related
 docker-compose.override.yml
-.dockerignore

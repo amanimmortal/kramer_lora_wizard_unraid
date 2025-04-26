@@ -1,0 +1,35 @@
+# Ignore top-level data/models/logs directories and specific file types
+# These often contain large files or generated content not needed in the image.
+data/*
+!data/templates/
+
+logs/
+models/
+
+*.safetensors
+*.ckpt
+*.pt
+*.pth
+*.log
+selected_tags.csv
+
+# IMPORTANT: Allow the application's models directory
+!app/models/
+
+# Ignore common development files/directories
+.git/
+.gitignore
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Node build artifacts
+frontend/node_modules/ 
