@@ -27,6 +27,10 @@ RUN groupadd -f -g ${PGID} appgroup && \
     useradd -o -u ${PUID} -g ${PGID} -s /bin/bash -m appuser && \
     adduser appuser sudo
 
+# Allow appuser (via appgroup) to use sudo without password
+RUN echo '%appgroup ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/appuser-nopasswd && \
+    chmod 0440 /etc/sudoers.d/appuser-nopasswd
+
 # Copy requirements file first for better Docker layer caching
 COPY requirements.txt requirements.txt
 
