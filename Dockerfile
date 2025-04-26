@@ -54,18 +54,27 @@ RUN cp -r /tmp/sd-scripts/networks /app/
 RUN rm -rf /tmp/sd-scripts
 # --- End Kohya_ss sd-scripts ---
 
-# Copy the rest of the application
-COPY app/ app/
-COPY data/templates/ data/templates/
-COPY run.py .
-COPY download_models.py .
-COPY start.sh .
+# Ensure the target app directory exists
+RUN mkdir -p /app/app
+
+# Copy the application components individually
+COPY app/__init__.py /app/app/__init__.py
+COPY app/main.py /app/app/main.py
+COPY app/api/ /app/app/api/
+COPY app/models/ /app/app/models/
+COPY app/services/ /app/app/services/
+
+# Copy other necessary files and directories
+COPY data/templates/ /app/data/templates/
+COPY run.py /app/run.py
+COPY download_models.py /app/download_models.py
+COPY start.sh /app/start.sh
 
 # Copy built frontend
 COPY --from=frontend-builder /app/frontend/dist /app/frontend/dist
 
-# Create necessary directories (still as root before chown)
-RUN mkdir -p data/models data/datasets logs
+# Create necessary data/log directories (still as root before chown)
+RUN mkdir -p /app/data/models /app/data/datasets /app/logs
 
 # Environment variables
 ENV HOST=0.0.0.0
@@ -75,9 +84,8 @@ ENV MKL_THREADING_LAYER=GNU
 EXPOSE 8000
 
 # Change ownership of the app directory and necessary subdirectories
-# This ensures the appuser can write to mounted volumes and install packages if needed later
 RUN chown -R appuser:appgroup /app
-RUN chmod +x start.sh
+RUN chmod +x /app/start.sh
 
 # Switch to non-root user
 USER appuser
