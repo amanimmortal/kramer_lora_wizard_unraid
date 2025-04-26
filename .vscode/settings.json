@@ -1,0 +1,11 @@
+{
+  "typescript.validate.enable": false,
+  "javascript.validate.enable": false,
+  "python.linting.enabled": false,
+  "python.analysis.diagnosticSeverityOverrides": {
+    "reportMissingImports": "none",
+    "reportMissingModuleSource": "none"
+  },
+  "docker.imagesSummary.enabled": false,
+  "editor.formatOnSave": true
+} 
