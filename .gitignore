@@ -5,12 +5,160 @@ __pycache__/
 *.so
 .Python
 env/
-build/
+# build/ # Handled below
+# dist/ # Handled below
 develop-eggs/
+# downloads/ # Typically user specific, keep?
+# eggs/ # Usually covered by .egg-info
+# .eggs/ # Usually covered by .egg-info
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Node
+frontend/node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+.pnpm-store/
+.env*
+!.env.example
+
+# IDEs & Editor directories/files
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.sublime-project
+*.sublime-workspace
+*.swp
+*.swo
+.history/
+.vim/
+.DS_Store
+Thumbs.db
+
+# Cursor
+.cursor/
+
+# Distribution / packaging / Build artifacts
+build/
 dist/
-downloads/
-eggs/
-.eggs/
+MANIFES
+*.manifest
+*.spec
+target/
+/site # mkdocs
+
+# Installer logs
+# pip-log.txt
+# pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+# nosetests.xml
+# coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+cover/
+
+# Translations
+*.mo
+*.pot
+# *.log # Keep application logs ignored below
+
+# Framework specific
+*.rnc # Django
+*.sqlite3 # Django/Flask dev db
+*.sass-cache/ # Django
+instance/ # Flask
+.webassets-cache # Flask
+.scrapy # Scrapy
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# IPython
+profile_default/
+ipython_config.py
+
+# PEP 582
+__pypackages__/
+
+# Celery stuff
+celerybeat-schedule
+celerybeat.pid
+
+# SageMath parsed files
+*.sage.py
+
+# Environments
+.env # Already covered by .env*
+.venv
+venv/
+# env/ # Already covered by rule on line 8
+
+# Spyder project settings
+.spyderproject
+.spyproject
+
+# Rope project settings
+.ropeproject
+
+# Type Checkers
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyre/
+.pytype/
+
+# Project Specific Data, Models, Logs, Models (KEEP TEMPLATES)
+data/*
+!data/templates/
+logs/
+models/
+*.safetensors
+*.ckpt
+*.pt
+*.pth
+*.log # Application logs
+selected_tags.csv # Assuming this is generated
+
+# Docker related
+docker-compose.override.yml
+.dockerignore
+# .docker/ # Usually not needed unless storing custom Docker context
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+# build/ # Handled below
+# dist/ # Handled below
+develop-eggs/
+# downloads/ # Typically user specific, keep?
+# eggs/ # Usually covered by .egg-info
+# .eggs/ # Usually covered by .egg-info
 lib/
 lib64/
 parts/
