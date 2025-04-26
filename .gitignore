@@ -133,7 +133,6 @@ dmypy.json
 data/*
 !data/templates/
 logs/
-models/
 *.safetensors
 *.ckpt
 *.pt
