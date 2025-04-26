@@ -74,7 +74,7 @@ COPY start.sh /app/start.sh
 COPY --from=frontend-builder /app/frontend/dist /app/frontend/dist
 
 # Create necessary data/log directories (still as root before chown)
-RUN mkdir -p /app/data/models /app/data/datasets /app/logs
+RUN mkdir -p /app/data/models /app/data/datasets
 
 # Environment variables
 ENV HOST=0.0.0.0

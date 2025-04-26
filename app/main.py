@@ -9,15 +9,15 @@ from datetime import datetime
 from .api import projects, training
 
 # Configure logging
-log_dir = "logs"
-os.makedirs(log_dir, exist_ok=True)
-log_file = os.path.join(log_dir, f"app_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log")
+# log_dir = "logs" # Removed
+# os.makedirs(log_dir, exist_ok=True) # Removed
+# log_file = os.path.join(log_dir, f"app_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log") # Removed
 
 logging.basicConfig(
     level=logging.DEBUG,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler(log_file),
+        # logging.FileHandler(log_file), # Removed file logging
         logging.StreamHandler()
     ]
 )

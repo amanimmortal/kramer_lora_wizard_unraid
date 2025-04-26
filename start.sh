@@ -1,15 +1,10 @@
 #!/bin/bash
 set -e
 
-echo "Listing /app contents:"
-ls -la /app
-echo "--------------------"
-echo "Listing /app/app contents:"
-ls -la /app/app
-echo "--------------------"
-echo "Listing /app/app/models contents:"
-ls -la /app/app/models
-echo "--------------------"
+# Ensure the logs directory is writable by appuser at runtime
+# This handles potential volume mounts overwriting build-time permissions.
+# echo "Ensuring /app/logs ownership..." # Removed
+# sudo chown appuser:appgroup /app/logs # Removed
 
 # Download models first
 python download_models.py

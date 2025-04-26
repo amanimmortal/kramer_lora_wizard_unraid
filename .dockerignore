@@ -3,7 +3,7 @@
 data/*
 !data/templates/
 
-logs/
+# logs/
 models/
 
 *.safetensors
