@@ -22,9 +22,9 @@ RUN apt-get update && apt-get install -y \
     sudo \
     && rm -rf /var/lib/apt/lists/*
 
-# Create group and user
-RUN groupadd -g ${PGID} appgroup && \
-    useradd -u ${PUID} -g appgroup -s /bin/bash -m appuser && \
+# Create group and user, allowing for existing GID/UID
+RUN groupadd -f -g ${PGID} appgroup && \
+    useradd -o -u ${PUID} -g ${PGID} -s /bin/bash -m appuser && \
     adduser appuser sudo
 
 # Copy requirements file first for better Docker layer caching
