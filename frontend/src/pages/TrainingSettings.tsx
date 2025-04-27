@@ -113,8 +113,10 @@ const TrainingSettings: React.FC = () => {
       // --- End Mapping ---
 
       try {
+        // Fetch ALL templates first
         const response = await axios.get(`/api/training/templates`);
-        const templates = response.data.templates;
+        // Correctly access the templates object from the response data
+        const templates = response.data;
 
         // Use the mapping function to get the short key
         const shortModelKey = modelNameToShortKey(baseModel);
