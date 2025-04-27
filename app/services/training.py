@@ -49,6 +49,17 @@ class TrainingService:
 
     def start_training(self, project_id: str, settings: Dict[str, Any]) -> Dict[str, Any]:
         """Directly starts a training process using the prepared settings dictionary"""
+        # --- Check if a process is already running for this project ---
+        if project_id in self.active_processes:
+            existing_process_info = self.active_processes[project_id]
+            existing_pid = existing_process_info.get("process").pid if existing_process_info.get("process") else "unknown"
+            logger.warning(f"Training start requested for {project_id}, but process {existing_pid} is already active.")
+            raise HTTPException(
+                status_code=409, # Conflict
+                detail=f"Training process (PID: {existing_pid}) is already running or cleaning up for this project. Please wait or cancel the existing run."
+            )
+        # --- End check ---
+        
         try:
             logger.info(f"Starting training process for project {project_id}")
             logger.debug(f"Using settings: {settings}")
