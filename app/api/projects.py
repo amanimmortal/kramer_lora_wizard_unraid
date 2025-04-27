@@ -367,4 +367,100 @@ async def delete_project(project_id: str):
     except Exception as e:
         logger.error(f"Error deleting project {project_id}: {str(e)}")
         # Raise a 500 error if deletion fails
-        raise HTTPException(status_code=500, detail=f"Failed to delete project: {str(e)}") 
+        raise HTTPException(status_code=500, detail=f"Failed to delete project: {str(e)}")
+
+# --- New Endpoint to Finalize Tags ---
+@router.post("/{project_id}/finalize-tags", status_code=200)
+async def finalize_project_tags(project_id: str):
+    """
+    Ensures the project's trigger word is prepended to each image's tag file 
+    if it's not already present. Creates the tag file if it doesn't exist.
+    Intended to be called before starting training setup.
+    """
+    logger.info(f"Finalizing tags for project {project_id}, ensuring trigger word.")
+    
+    try:
+        # 1. Get Project Details (includes trigger word)
+        project_file_path = f"data/datasets/{project_id}/metadata/project.json"
+        if not os.path.exists(project_file_path):
+            logger.error(f"Finalize tags: Project metadata file not found: {project_file_path}")
+            raise HTTPException(status_code=404, detail="Project definition not found")
+            
+        with open(project_file_path, "r") as f:
+            project_data = json.load(f) # Load as dict to easily get triggerWord
+            
+        trigger_word = project_data.get('triggerWord')
+        if not trigger_word or not trigger_word.strip():
+            logger.info(f"No trigger word set for project {project_id}, skipping tag finalization.")
+            return {"message": "No trigger word set, skipping."}
+        
+        trigger_word = trigger_word.strip() # Use the stripped version
+        logger.info(f"Using trigger word: '{trigger_word}'")
+
+        # 2. Get Image Directory Path
+        image_dir = f"data/datasets/{project_id}/images"
+        if not os.path.isdir(image_dir):
+             logger.error(f"Finalize tags: Image directory not found: {image_dir}")
+             # If image dir doesn't exist, we can't do anything, but maybe not a server error?
+             # Let's return a specific message.
+             return {"message": f"Image directory not found, cannot finalize tags."}
+
+        # 3. Iterate through images and update tag files
+        updated_count = 0
+        created_count = 0
+        image_files = [f for f in os.listdir(image_dir) if f.lower().endswith(('.png', '.jpg', '.jpeg', '.webp', '.bmp'))]
+
+        logger.debug(f"Found {len(image_files)} image files to check tags for.")
+
+        for image_filename in image_files:
+            base_name = os.path.splitext(image_filename)[0]
+            txt_path = os.path.join(image_dir, f"{base_name}.txt")
+            
+            current_tags = []
+            file_existed = False
+            
+            try:
+                if os.path.exists(txt_path):
+                    file_existed = True
+                    with open(txt_path, "r", encoding="utf-8") as f:
+                        content = f.read().strip()
+                        if content:
+                            current_tags = [t.strip() for t in content.split(',') if t.strip()]
+                
+                # Check if trigger word needs adding (case-insensitive)
+                trigger_present = any(tag.lower() == trigger_word.lower() for tag in current_tags)
+                
+                if not trigger_present:
+                    # Prepend the trigger word
+                    final_tags = [trigger_word] + [tag for tag in current_tags if tag.lower() != trigger_word.lower()] # Ensure no duplicates if case differs
+                    tag_string = ", ".join(final_tags)
+                    
+                    # Write back to file
+                    with open(txt_path, "w", encoding="utf-8") as f:
+                        f.write(tag_string)
+                        
+                    if file_existed:
+                        updated_count += 1
+                        logger.debug(f"Updated tags for {image_filename}, prepended trigger word.")
+                    else:
+                        created_count += 1
+                        logger.debug(f"Created tag file for {image_filename} with trigger word.")
+                # else: # Optional: Log if trigger word was already present
+                #    logger.debug(f"Trigger word already present for {image_filename}.")
+
+            except PermissionError:
+                 logger.error(f"Permission denied accessing tag file: {txt_path}. Skipping.")
+                 # Optionally raise an error or collect files with issues
+            except Exception as e:
+                logger.error(f"Error processing tag file {txt_path}: {e}. Skipping.")
+                # Optionally raise an error or collect files with issues
+
+        logger.info(f"Tag finalization complete for project {project_id}. Files created: {created_count}, Files updated: {updated_count}.")
+        return {"message": f"Tag finalization complete. Files created: {created_count}, Files updated: {updated_count}."}
+
+    except HTTPException as http_exc:
+        raise http_exc # Re-raise FastAPI specific errors
+    except Exception as e:
+        logger.error(f"Error finalizing tags for project {project_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Internal server error finalizing tags: {str(e)}")
+# --- End New Endpoint --- 

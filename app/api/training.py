@@ -14,6 +14,7 @@ import logging
 import json
 import re
 from fastapi.responses import PlainTextResponse
+import random # Added for sampling tags
 
 # Setup logger
 logger = logging.getLogger(__name__)
@@ -76,6 +77,41 @@ async def start_training(project_id: str, payload: TrainingRequestPayload):
         
         # Add baseModelName to settings for the training service to use and remove
         kohya_settings['baseModelName'] = payload.baseModelName
+
+        # --- Auto-generate sample prompt if empty ---
+        sample_prompt_setting = kohya_settings.get('sample_prompts', '')
+        if not sample_prompt_setting or not str(sample_prompt_setting).strip():
+            logger.info("Sample prompt is empty, attempting to auto-generate...")
+            trigger_word = project.triggerWord.strip() if project.triggerWord else None
+            if trigger_word:
+                all_tags = set()
+                image_dir = kohya_settings.get('train_data_dir')
+                if image_dir and os.path.isdir(image_dir):
+                    for filename in os.listdir(image_dir):
+                        if filename.lower().endswith('.txt'):
+                            try:
+                                txt_path = os.path.join(image_dir, filename)
+                                with open(txt_path, 'r', encoding='utf-8') as f:
+                                    content = f.read().strip()
+                                    if content:
+                                        tags_in_file = {t.strip() for t in content.split(',') if t.strip() and t.strip().lower() != trigger_word.lower()}
+                                        all_tags.update(tags_in_file)
+                            except Exception as e:
+                                logger.warning(f"Could not read or parse tag file {filename}: {e}")
+                
+                unique_tags = list(all_tags)
+                num_tags_to_sample = min(7, len(unique_tags))
+                sampled_tags = random.sample(unique_tags, num_tags_to_sample)
+                
+                generated_prompt = trigger_word
+                if sampled_tags:
+                    generated_prompt += ", " + ", ".join(sampled_tags)
+                
+                kohya_settings['sample_prompts'] = generated_prompt
+                logger.info(f"Auto-generated sample prompt: {generated_prompt}")
+            else:
+                logger.warning("Cannot auto-generate sample prompt: No trigger word set for the project.")
+        # --- End auto-generate --- 
 
         # 4. Start Training via Service
         logger.info(f"Calling training service for project {project_id} with model {payload.baseModelName}")

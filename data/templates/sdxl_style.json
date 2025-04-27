@@ -22,7 +22,7 @@
   "lr_scheduler_num_cycles": 1,
   "lr_warmup_steps": 150,
   "max_train_epochs": 10,
-  "train_batch_size": 2,
+  "train_batch_size": 1,
   "mixed_precision": "fp16",
   "save_precision": "fp16",
   "gradient_checkpointing": true,

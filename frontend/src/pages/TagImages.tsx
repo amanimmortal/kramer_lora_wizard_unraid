@@ -22,13 +22,15 @@ import {
   FormControlLabel,
   Slider,
   Divider,
-  CircularProgress
+  CircularProgress,
+  Alert
 } from '@mui/material';
 import {
   Add as AddIcon,
   ZoomIn as ZoomInIcon,
   ArrowForward as ArrowForwardIcon,
-  Settings as SettingsIcon
+  Settings as SettingsIcon,
+  Check as CheckIcon
 } from '@mui/icons-material';
 import axios from 'axios';
 import { ImageMetadata } from '../types';
@@ -59,6 +61,11 @@ const TagImages: React.FC = () => {
   const [autoTagging, setAutoTagging] = useState(false);
   const [triggerWord, setTriggerWord] = useState<string>('');
   const [savingTriggerWord, setSavingTriggerWord] = useState(false);
+
+  // --- State for the finalize step ---
+  const [isFinalizing, setIsFinalizing] = useState<boolean>(false);
+  const [finalizeError, setFinalizeError] = useState<string | null>(null);
+  // --- End finalize state ---
 
   // Add auto-tag settings state
   const [autoTagSettingsOpen, setAutoTagSettingsOpen] = useState(false);
@@ -189,9 +196,26 @@ const TagImages: React.FC = () => {
     });
   };
 
-  const handleProceed = () => {
-    if (projectId) {
+  const handleProceed = async () => {
+    if (!projectId) return;
+
+    setIsFinalizing(true);
+    setFinalizeError(null);
+
+    try {
+      // Call the new backend endpoint to ensure trigger word is in tags
+      const response = await axios.post(`/api/projects/${projectId}/finalize-tags`);
+      console.log('Finalize tags response:', response.data);
+      // Navigate to training page on success
       navigate(`/train/${projectId}`);
+
+    } catch (error: any) {
+      console.error('Error finalizing tags:', error);
+      const errorDetail = error.response?.data?.detail || 'Failed to ensure trigger word in tags.';
+      setFinalizeError(errorDetail);
+      // Don't navigate if there was an error
+    } finally {
+      setIsFinalizing(false);
     }
   }
 
@@ -252,9 +276,9 @@ const TagImages: React.FC = () => {
           <Button
             variant="contained"
             color="primary"
+            startIcon={isFinalizing ? <CircularProgress size={20} color="inherit" /> : <ArrowForwardIcon />}
             onClick={handleProceed}
-            disabled={images.length === 0}
-            endIcon={<ArrowForwardIcon />}
+            disabled={autoTagging || isFinalizing}
           >
             Proceed to Training
           </Button>
@@ -265,6 +289,12 @@ const TagImages: React.FC = () => {
           </Typography>
         )}
       </Paper>
+
+      {finalizeError && (
+        <Alert severity="error" sx={{ mb: 2 }}>
+          {finalizeError}
+        </Alert>
+      )}
 
       <Grid container spacing={2}>
         {images.map((image) => (

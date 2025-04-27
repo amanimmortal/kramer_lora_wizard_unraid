@@ -562,7 +562,7 @@ const TrainingSettings: React.FC = () => {
                   {Object.entries(settings)
                     .filter(([key]) => !
                       ['pretrained_model_name_or_path', 'train_data_dir', 'output_dir', 'logging_dir',
-                        'output_name', 'log_prefix', 'sample_prompts', 'baseModelName', // Ignore these fields
+                        'output_name', 'log_prefix', 'baseModelName', // Removed 'sample_prompts' from ignore list
                         'max_train_epochs' // Already moved
                       ].includes(key)
                     )
