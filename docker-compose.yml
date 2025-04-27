@@ -10,12 +10,12 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      # Map the container's data directory to the standard Unraid appdata location
-      # The user should adjust 'lora-wizard' if they prefer a different folder name
-      - /mnt/user/appdata/lora-wizard:/app/data
-      # Map the container's log directory to a subfolder within the appdata mapping
+      # Map specific data subdirectories to preserve built-in templates
+      # User needs to ensure these host paths exist or are created by Unraid/Docker
+      - /mnt/user/appdata/lora-wizard/datasets:/app/data/datasets
+      - /mnt/user/appdata/lora-wizard/models:/app/data/models
+      # Keep log mapping separate
       - /mnt/user/appdata/lora-wizard/logs:/app/logs
-      # Removed redundant/potentially confusing sub-directory mappings previously here
     environment:
       - PUID=${PUID:-99}
       - PGID=${PGID:-100}
