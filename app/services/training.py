@@ -385,13 +385,46 @@ class TrainingService:
                  return {"status": "not_running", "message": "No active training process found to cancel."}
                  
     def _get_project_state_value(self, project_id: str, key: str) -> Optional[Any]:
-        """Helper to safely read a value from the state file"""
-        state_path = os.path.join(self.datasets_path, project_id, "metadata", "state.json")
-        try:
-            if os.path.exists(state_path):
-                 with open(state_path, 'r') as f:
+        """Helper to read a specific value from the project state file."""
+        state_file = os.path.join(self.datasets_path, project_id, "metadata", "training_state.json")
+        if os.path.exists(state_file):
+            try:
+                with open(state_file, 'r') as f:
                     state = json.load(f)
                     return state.get(key)
+            except Exception as e:
+                logger.warning(f"Could not read project state file {state_file}: {e}")
+        return None
+
+    def get_training_logs(self, project_id: str, log_type: str, lines: int = 100) -> str:
+        """Retrieve the last N lines from the specified training log file."""
+        if log_type not in ["stdout", "stderr"]:
+            raise ValueError("Invalid log_type. Must be 'stdout' or 'stderr'.")
+
+        log_dir = os.path.join(self.datasets_path, project_id, "log")
+        log_filename = f"training_{log_type}.log"
+        log_filepath = os.path.join(log_dir, log_filename)
+
+        logger.debug(f"Attempting to read log file: {log_filepath}")
+
+        if not os.path.exists(log_filepath):
+            logger.warning(f"Log file not found: {log_filepath}")
+            # Raise specific error for API to handle as 404
+            raise FileNotFoundError(f"Log file ({log_filename}) not found.")
+
+        try:
+            # Efficiently read last N lines (deque approach)
+            from collections import deque
+            with open(log_filepath, "r", encoding="utf-8") as f:
+                last_lines = deque(f, maxlen=lines)
+            log_content = "".join(last_lines)
+                
+            logger.debug(f"Successfully read {len(last_lines)} lines from {log_filepath}")
+            return log_content
+        except PermissionError as pe:
+             logger.error(f"Permission denied reading log file {log_filepath}", exc_info=True)
+             raise PermissionError(f"Permission denied reading log file: {log_filename}") # Raise specific error
         except Exception as e:
-            logger.error(f"Failed to read project state file {state_path} for key '{key}': {e}")
-        return None 
+            logger.error(f"Error reading log file {log_filepath}: {e}", exc_info=True)
+            # Raise a generic error for other issues
+            raise RuntimeError(f"Error reading log file: {str(e)}") 
