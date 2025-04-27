@@ -285,135 +285,242 @@ async def save_image_tags(
 
 @router.get("/templates")
 async def get_training_templates() -> Dict[str, Any]:
-    """Get available training templates"""
+    """Fetches available training templates from the data directory."""
+    logger.info("Fetching training templates...")
+    # Use absolute path for clarity in logs
+    template_dir = os.path.abspath("data/templates")
+    logger.debug(f"Attempting to access template directory: {template_dir}")
+    templates = {}
     try:
-        templates = {}
-        template_dir = "data/templates"
-        
-        # Read all template files
-        for filename in os.listdir(template_dir):
-            if filename.endswith('.json'):
-                with open(os.path.join(template_dir, filename), 'r') as f:
-                    template_name = os.path.splitext(filename)[0]
-                    templates[template_name] = json.load(f)
-        
-        return {"templates": templates}
+        # Check directory existence and accessibility
+        logger.debug(f"Checking if path exists and is a directory: {template_dir}")
+        if not os.path.isdir(template_dir):
+            logger.error(f"Template directory check failed. Path not found or not a directory: {template_dir}")
+            # Add extra info if possible
+            exists = os.path.exists(template_dir)
+            logger.error(f"os.path.exists reports: {exists}")
+            if exists:
+                 logger.error(f"Path exists but is not a directory.")
+            raise HTTPException(status_code=500, detail=f"Template directory not found or inaccessible: {template_dir}")
+        logger.debug(f"Template directory confirmed to exist and is a directory: {template_dir}")
+
+        # List directory contents
+        logger.debug(f"Attempting to list contents of: {template_dir}")
+        try:
+             filenames = os.listdir(template_dir)
+             logger.info(f"Successfully listed directory. Found items: {filenames}") # Log items found
+        except PermissionError as pe:
+             logger.error(f"Permission denied when trying to list directory contents for {template_dir}", exc_info=True)
+             raise HTTPException(status_code=500, detail=f"Permission denied listing template directory: {template_dir}")
+        except Exception as list_e:
+             logger.error(f"Failed to list directory contents for {template_dir}: {list_e}", exc_info=True)
+             raise HTTPException(status_code=500, detail=f"Failed to list template directory: {template_dir}")
+
+        if not filenames:
+             logger.warning(f"Template directory is empty: {template_dir}")
+
+        for filename in filenames:
+            logger.debug(f"Processing item: {filename}")
+            file_path = os.path.join(template_dir, filename)
+            # Check if it's a file and ends with .json
+            if not os.path.isfile(file_path):
+                 logger.debug(f"Skipping item '{filename}', not a file.")
+                 continue
+            if not filename.lower().endswith(".json"): # Case-insensitive check
+                 logger.debug(f"Skipping item '{filename}', not a .json file.")
+                 continue
+
+            logger.debug(f"Attempting to read JSON template file: {file_path}")
+            try:
+                # Explicitly use utf-8 encoding
+                with open(file_path, "r", encoding="utf-8") as f:
+                    template_data = json.load(f)
+                    template_key = os.path.splitext(filename)[0]
+                    templates[template_key] = template_data
+                logger.debug(f"Successfully loaded template: {filename}")
+            except json.JSONDecodeError as json_err:
+                # Log the specific JSON error and the file
+                logger.error(f"Error decoding JSON from template file: {filename}. Error: {json_err}", exc_info=True)
+                # Decide if you want to continue or fail hard; currently continues to next file
+            except FileNotFoundError:
+                 logger.error(f"File not found during read attempt (race condition?): {file_path}", exc_info=True)
+            except PermissionError:
+                 logger.error(f"Permission denied when trying to read file: {file_path}", exc_info=True)
+            except Exception as read_e:
+                # Catch other potential file reading errors
+                logger.error(f"Unexpected error reading or processing template file {filename}: {read_e}", exc_info=True)
+
+        logger.info(f"Finished processing directory. Found {len(templates)} valid templates.")
+        if not templates and filenames: # Log if files were present but none loaded
+            logger.warning("Directory contained files, but no valid JSON templates were loaded.")
+        elif not templates and not filenames:
+             logger.info("No templates loaded as the directory was empty.")
+
+
+        return templates
+    except HTTPException as http_exc: # Re-raise HTTP exceptions directly
+        logger.error(f"HTTPException occurred during template loading: {http_exc.detail}", exc_info=True)
+        raise http_exc
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        # This catches errors from the initial checks or unforeseen issues
+        logger.error(f"Unhandled exception while trying to load templates from {template_dir}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to load templates due to an unexpected error: {str(e)}")
 
 @router.get("/base-models")
 async def get_base_models() -> Dict[str, List[str]]:
-    """Get available base models for training by scanning the models directory."""
-    models_dir = os.path.join("data", "models")
-    available_models = []
+    logger.info("Fetching base models...")
+    # Assuming models are stored directly in data/models or specific subdirs
+    # Adjust path as needed based on where base models actually are stored
+    model_dir = os.path.abspath("data/models") 
+    logger.debug(f"Checking base model directory: {model_dir}")
+    base_models = {"sd_1_5": [], "sdxl": [], "pony": []} # Example categories
+    known_extensions = (".ckpt", ".safetensors") # Files to look for
+
     try:
-        if os.path.exists(models_dir):
-            for filename in os.listdir(models_dir):
-                if filename.lower().endswith('.safetensors'):
-                    # Use filename without extension as the model name
-                    model_name = os.path.splitext(filename)[0]
-                    available_models.append(model_name)
-        else:
-            logger.warning(f"Models directory not found: {models_dir}")
-            
-        # Sort for consistent order
-        available_models.sort()
-        
-        logger.info(f"Found base models: {available_models}")
-        return {"models": available_models}
-        
+        if not os.path.isdir(model_dir):
+            logger.warning(f"Base model directory not found: {model_dir}. Returning empty list.")
+            # Return empty instead of erroring? Or maybe raise? Depending on requirement.
+            # For now, return empty as the frontend might expect this structure.
+            return base_models
+
+        logger.debug(f"Listing contents of base model directory: {model_dir}")
+        # Walk through the directory and subdirectories
+        for root, dirs, files in os.walk(model_dir):
+            logger.debug(f"Scanning directory: {root}")
+            # Optional: Skip specific subdirs like 'wd14' if they aren't base models
+            if 'wd14' in dirs and root == model_dir: # Example: Skip wd14 only at top level
+                logger.debug("Skipping 'wd14' directory.")
+                dirs.remove('wd14') 
+                
+            for filename in files:
+                if filename.lower().endswith(known_extensions):
+                    logger.debug(f"Found potential model file: {filename} in {root}")
+                    model_path_relative = os.path.relpath(os.path.join(root, filename), model_dir)
+                    
+                    # --- Simple Categorization Logic (Example) ---
+                    # This is basic, might need refinement based on naming conventions
+                    fn_lower = filename.lower()
+                    if "sdxl" in fn_lower or "sd_xl" in fn_lower:
+                        base_models["sdxl"].append(model_path_relative)
+                        logger.info(f"Categorized '{model_path_relative}' as SDXL")
+                    elif "pony" in fn_lower:
+                         base_models["pony"].append(model_path_relative)
+                         logger.info(f"Categorized '{model_path_relative}' as Pony")
+                    else: 
+                        # Default to SD 1.5 if not otherwise identifiable
+                        base_models["sd_1_5"].append(model_path_relative)
+                        logger.info(f"Categorized '{model_path_relative}' as SD 1.5 (default)")
+                    # --- End Categorization ---
+                        
+        # Remove empty categories before returning? Optional.
+        # base_models = {k: v for k, v in base_models.items() if v} 
+
+        logger.info(f"Found base models: {base_models}")
+        return base_models
+
+    except PermissionError as pe:
+        logger.error(f"Permission denied accessing base model directory: {model_dir}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Permission denied accessing base model directory.")
     except Exception as e:
-        logger.error(f"Error scanning base models directory {models_dir}: {e}", exc_info=True)
-        # Return empty list or raise an error depending on desired behavior
-        # Raising might be better to alert the frontend that something is wrong
-        raise HTTPException(status_code=500, detail="Could not retrieve base models.")
+        logger.error(f"Failed to list base models from {model_dir}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to list base models: {str(e)}")
 
 @router.get("/template-for-model")
 async def get_template_for_model(model: str, type: LoraType) -> Dict[str, Any]:
-    """Get the appropriate template based on model and LoRA type"""
-    try:
-        template_map = {
-            "IllustriousXL": {
-                "character": "illustriousxl_char",
-                "style": "illustriousxl_style"
-            },
-            "PonyXL": {
-                "character": "ponyxl_char",
-                "style": "ponyxl_style"  
-            },
-            "SDXL": {
-                "character": "sdxl_char",
-                "style": "sdxl_style"
-            }
-        }
+    """
+    Attempts to find a suitable JSON template based on the model name and LoRA type (char/style).
+    Looks for files named like: {model_name_part}_{type}.json 
+    Example: ponyxl_char.json, illustriousxl_style.json
+    """
+    logger.info(f"Attempting to find template for model '{model}' and type '{type.value}'")
+    template_dir = os.path.abspath("data/templates")
+    
+    # --- Derive potential template filename ---
+    # Extract base name part (e.g., 'ponyxl' from 'pony/pony.safetensors')
+    # This logic might need adjustment based on actual model names/paths
+    model_base_name = os.path.basename(model) # Get 'pony.safetensors'
+    model_name_part = os.path.splitext(model_base_name)[0] # Get 'pony'
+    # If the model path includes directory structure like 'pony/pony.safetensors', 
+    # we might want the directory name instead/as well. Let's try to get the first part.
+    model_path_parts = model.split(os.sep)
+    if len(model_path_parts) > 1:
+        model_name_part = model_path_parts[0] # Use 'pony' from 'pony/...'
+    
+    # Construct expected filename
+    template_filename = f"{model_name_part.lower()}_{type.value.lower()}.json"
+    potential_path = os.path.join(template_dir, template_filename)
+    logger.debug(f"Looking for template file: {potential_path}")
+
+    # --- Attempt to load the specific template ---
+    if os.path.isfile(potential_path):
+        logger.info(f"Found matching template file: {template_filename}")
+        try:
+            with open(potential_path, "r", encoding="utf-8") as f:
+                template_data = json.load(f)
+            logger.debug(f"Successfully loaded template data for {template_filename}")
+            return template_data
+        except json.JSONDecodeError as json_err:
+            logger.error(f"Error decoding JSON from specific template file: {template_filename}. Error: {json_err}", exc_info=True)
+            raise HTTPException(status_code=500, detail=f"Failed to parse template file '{template_filename}'.")
+        except PermissionError:
+             logger.error(f"Permission denied reading template file: {potential_path}", exc_info=True)
+             raise HTTPException(status_code=500, detail=f"Permission denied reading template '{template_filename}'.")
+        except Exception as e:
+            logger.error(f"Error reading specific template file {template_filename}: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=f"Failed to read template file '{template_filename}'.")
+    else:
+        # --- Fallback logic (Optional) ---
+        # If specific template not found, maybe load a default? 
+        # Example: Try loading sdxl_char.json or sdxl_style.json as a fallback
+        fallback_filename = f"sdxl_{type.value.lower()}.json" # Example fallback
+        fallback_path = os.path.join(template_dir, fallback_filename)
+        logger.warning(f"Specific template '{template_filename}' not found. Attempting fallback: '{fallback_filename}'")
         
-        if model not in template_map:
-            raise HTTPException(status_code=400, detail=f"Unsupported model: {model}")
-            
-        template_name = template_map[model][type]
-        template_path = f"data/templates/{template_name}.json"
-        
-        if not os.path.exists(template_path):
-            raise HTTPException(status_code=404, detail=f"Template not found: {template_name}")
-            
-        with open(template_path, 'r') as f:
-            template = json.load(f)
-            
-        return {
-            "template_name": template_name,
-            "template": template
-        }
-    except HTTPException as e:
-        raise e
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        if os.path.isfile(fallback_path):
+            logger.info(f"Found fallback template file: {fallback_filename}")
+            try:
+                with open(fallback_path, "r", encoding="utf-8") as f:
+                    fallback_data = json.load(f)
+                logger.debug(f"Successfully loaded fallback template data for {fallback_filename}")
+                return fallback_data
+            except Exception as e:
+                 logger.error(f"Error reading fallback template file {fallback_filename}: {e}", exc_info=True)
+                 # Fail if fallback also fails to load
+                 raise HTTPException(status_code=500, detail=f"Failed to read fallback template file '{fallback_filename}'.")
+        else:
+             logger.error(f"Specific template '{template_filename}' and fallback '{fallback_filename}' not found in {template_dir}")
+             raise HTTPException(status_code=404, detail=f"Could not find a suitable template for model '{model}' type '{type.value}'. Looked for '{template_filename}' and fallback '{fallback_filename}'.")
 
 # --- New Log Endpoint --- 
 @router.get("/{project_id}/logs", response_class=PlainTextResponse)
 async def get_training_logs(project_id: str, log_type: str = "stdout", lines: int = 100):
-    """Retrieve the last N lines from training log files."""
-    logger.debug(f"Request received for {log_type} logs for project {project_id}, last {lines} lines.")
-    if log_type not in ["stdout", "stderr"]:
-        raise HTTPException(status_code=400, detail="Invalid log_type. Must be 'stdout' or 'stderr'.")
-
-    # Construct log file path
-    # Note: Assumes standard log directory structure used by TrainingService
-    log_dir = os.path.join("data", "datasets", project_id, "log")
-    log_filename = f"training_{log_type}.log"
-    log_filepath = os.path.join(log_dir, log_filename)
-
-    logger.debug(f"Attempting to read log file: {log_filepath}")
-
-    if not os.path.exists(log_filepath):
-        logger.warning(f"Log file not found: {log_filepath}")
-        return f"Log file ({log_filename}) not found."
-        # Alternative: raise HTTPException(status_code=404, detail=f"Log file ({log_filename}) not found.")
-
+    """Get training logs"""
+    logger.debug(f"Fetching logs for project {project_id}, type: {log_type}, lines: {lines}")
     try:
-        # Read the last N lines (more efficient ways exist for huge files, but ok for now)
-        with open(log_filepath, "r", encoding="utf-8") as f:
-            # Read all lines
-            all_lines = f.readlines()
-            # Get the last N lines
-            last_n_lines = all_lines[-lines:]
-            log_content = "".join(last_n_lines)
-            
-        logger.debug(f"Successfully read {len(last_n_lines)} lines from {log_filepath}")
-        return log_content
+        log_content = training_service.get_training_logs(project_id, log_type, lines)
+        return PlainTextResponse(log_content)
+    except FileNotFoundError:
+        logger.warning(f"Log file not found for project {project_id}, type {log_type}")
+        raise HTTPException(status_code=404, detail="Log file not found")
     except Exception as e:
-        logger.error(f"Error reading log file {log_filepath}: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Error reading log file: {str(e)}")
+        logger.error(f"Error fetching logs for project {project_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/{project_id}/cancel")
 async def cancel_training(project_id: str):
-    """Endpoint to cancel an ongoing training process."""
+    """Cancel an ongoing training process"""
+    logger.info(f"Received request to cancel training for project {project_id}")
     try:
         result = training_service.cancel_training(project_id)
-        return result
-    except HTTPException as http_exc:
-        # Log FastAPI specific errors differently if needed, or just re-raise
-        logger.error(f"HTTP Exception during training cancel for {project_id}: {http_exc.detail}")
-        raise http_exc
+        if result["status"] == "cancelled":
+            logger.info(f"Training cancelled successfully for project {project_id}")
+            return result
+        elif result["status"] == "not_running":
+             logger.warning(f"Attempted to cancel training for {project_id}, but no process was found.")
+             raise HTTPException(status_code=404, detail="Training process not found or already finished")
+        else:
+             logger.error(f"Failed to cancel training for project {project_id}: {result.get('details', 'Unknown reason')}")
+             raise HTTPException(status_code=500, detail=result.get("details", "Failed to cancel training"))
     except Exception as e:
         logger.error(f"Error cancelling training for project {project_id}: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to cancel training: {str(e)}") 
+        raise HTTPException(status_code=500, detail=str(e))
