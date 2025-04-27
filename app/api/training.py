@@ -15,6 +15,7 @@ import json
 import re
 from fastapi.responses import PlainTextResponse
 import random # Added for sampling tags
+import tempfile # Added for temporary prompt file
 
 # Setup logger
 logger = logging.getLogger(__name__)
@@ -112,6 +113,38 @@ async def start_training(project_id: str, payload: TrainingRequestPayload):
             else:
                 logger.warning("Cannot auto-generate sample prompt: No trigger word set for the project.")
         # --- End auto-generate --- 
+
+        # --- Handle Sample Prompt File ---
+        sample_prompt_value = kohya_settings.get('sample_prompts')
+        temp_prompt_file_path = None # Track if we create a temp file
+
+        if sample_prompt_value and isinstance(sample_prompt_value, str) and sample_prompt_value.strip():
+            # If sample_prompts is a non-empty string, save it to a file
+            try:
+                metadata_dir = os.path.join("data", "datasets", project_id, "metadata")
+                os.makedirs(metadata_dir, exist_ok=True) # Ensure metadata dir exists
+
+                # Use a predictable name for easier cleanup later
+                temp_prompt_filename = f"temp_sample_prompt_{project_id}.txt"
+                temp_prompt_file_path = os.path.join(metadata_dir, temp_prompt_filename)
+
+                with open(temp_prompt_file_path, 'w', encoding='utf-8') as f:
+                    f.write(sample_prompt_value)
+
+                # Update settings to use the file path
+                kohya_settings['sample_prompts'] = temp_prompt_file_path
+                logger.info(f"Saved sample prompt string to temporary file: {temp_prompt_file_path}")
+
+            except Exception as e:
+                 logger.error(f"Failed to create temporary sample prompt file: {e}", exc_info=True)
+                 # Decide how to handle: Proceed without sampling or raise error?
+                 # For now, let's remove the setting so sampling is skipped if file creation fails.
+                 if 'sample_prompts' in kohya_settings:
+                     del kohya_settings['sample_prompts']
+                 logger.warning("Proceeding without sample prompt file due to error.")
+                 # Optionally, raise HTTPException here if sampling is critical
+
+        # --- End Handle Sample Prompt File ---
 
         # 4. Start Training via Service
         logger.info(f"Calling training service for project {project_id} with model {payload.baseModelName}")

@@ -238,6 +238,18 @@ class TrainingService:
                     shutil.rmtree(temp_dir)
                 except Exception as e:
                     logger.error(f"Error removing temporary directory {temp_dir}: {e}")
+
+            # --- Clean up temporary sample prompt file --- 
+            try:
+                metadata_dir = os.path.join(self.datasets_path, project_id, "metadata")
+                temp_prompt_filename = f"temp_sample_prompt_{project_id}.txt"
+                temp_prompt_file_path = os.path.join(metadata_dir, temp_prompt_filename)
+                if os.path.exists(temp_prompt_file_path):
+                     logger.info(f"Cleaning up temporary sample prompt file: {temp_prompt_file_path}")
+                     os.remove(temp_prompt_file_path)
+            except Exception as e:
+                 logger.error(f"Error removing temporary sample prompt file for project {project_id}: {e}")
+            # --- End cleanup ---
             
             # Remove from active process list
             del self.active_processes[project_id]
