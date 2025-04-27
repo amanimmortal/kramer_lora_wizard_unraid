@@ -368,62 +368,38 @@ async def get_training_templates() -> Dict[str, Any]:
 
 @router.get("/base-models")
 async def get_base_models() -> Dict[str, List[str]]:
-    logger.info("Fetching base models...")
-    # Assuming models are stored directly in data/models or specific subdirs
-    # Adjust path as needed based on where base models actually are stored
-    model_dir = os.path.abspath("data/models") 
-    logger.debug(f"Checking base model directory: {model_dir}")
-    base_models = {"sd_1_5": [], "sdxl": [], "pony": []} # Example categories
-    known_extensions = (".ckpt", ".safetensors") # Files to look for
-
+    """Get available base models for training by scanning the models directory."""
+    models_dir = os.path.join("data", "models")
+    available_models = []
+    logger.info(f"Fetching base models from: {models_dir}") # Added logging
     try:
-        if not os.path.isdir(model_dir):
-            logger.warning(f"Base model directory not found: {model_dir}. Returning empty list.")
-            # Return empty instead of erroring? Or maybe raise? Depending on requirement.
-            # For now, return empty as the frontend might expect this structure.
-            return base_models
+        if os.path.isdir(models_dir): # Check if it's a directory
+            logger.debug(f"Scanning directory: {models_dir}")
+            for filename in os.listdir(models_dir):
+                # Check if it's a file and has the correct extension
+                file_path = os.path.join(models_dir, filename)
+                if os.path.isfile(file_path) and filename.lower().endswith(('.ckpt', '.safetensors')):
+                    # Use filename without extension as the model name
+                    model_name = os.path.splitext(filename)[0]
+                    logger.debug(f"Found model file: {filename}, adding as: {model_name}")
+                    available_models.append(model_name)
+                # else: # Optional: Log skipped files/dirs
+                #    logger.debug(f"Skipping item: {filename}")
+        else:
+            logger.warning(f"Base models directory not found or is not a directory: {models_dir}")
 
-        logger.debug(f"Listing contents of base model directory: {model_dir}")
-        # Walk through the directory and subdirectories
-        for root, dirs, files in os.walk(model_dir):
-            logger.debug(f"Scanning directory: {root}")
-            # Optional: Skip specific subdirs like 'wd14' if they aren't base models
-            if 'wd14' in dirs and root == model_dir: # Example: Skip wd14 only at top level
-                logger.debug("Skipping 'wd14' directory.")
-                dirs.remove('wd14') 
-                
-            for filename in files:
-                if filename.lower().endswith(known_extensions):
-                    logger.debug(f"Found potential model file: {filename} in {root}")
-                    model_path_relative = os.path.relpath(os.path.join(root, filename), model_dir)
-                    
-                    # --- Simple Categorization Logic (Example) ---
-                    # This is basic, might need refinement based on naming conventions
-                    fn_lower = filename.lower()
-                    if "sdxl" in fn_lower or "sd_xl" in fn_lower:
-                        base_models["sdxl"].append(model_path_relative)
-                        logger.info(f"Categorized '{model_path_relative}' as SDXL")
-                    elif "pony" in fn_lower:
-                         base_models["pony"].append(model_path_relative)
-                         logger.info(f"Categorized '{model_path_relative}' as Pony")
-                    else: 
-                        # Default to SD 1.5 if not otherwise identifiable
-                        base_models["sd_1_5"].append(model_path_relative)
-                        logger.info(f"Categorized '{model_path_relative}' as SD 1.5 (default)")
-                    # --- End Categorization ---
-                        
-        # Remove empty categories before returning? Optional.
-        # base_models = {k: v for k, v in base_models.items() if v} 
+        # Sort for consistent order
+        available_models.sort()
 
-        logger.info(f"Found base models: {base_models}")
-        return base_models
+        logger.info(f"Found base models: {available_models}")
+        return {"models": available_models}
 
     except PermissionError as pe:
-        logger.error(f"Permission denied accessing base model directory: {model_dir}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Permission denied accessing base model directory.")
+        logger.error(f"Permission denied accessing base models directory {models_dir}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Permission denied accessing base models directory.")
     except Exception as e:
-        logger.error(f"Failed to list base models from {model_dir}: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to list base models: {str(e)}")
+        logger.error(f"Error scanning base models directory {models_dir}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Could not retrieve base models.")
 
 @router.get("/template-for-model")
 async def get_template_for_model(model: str, type: LoraType) -> Dict[str, Any]:
@@ -436,20 +412,14 @@ async def get_template_for_model(model: str, type: LoraType) -> Dict[str, Any]:
     template_dir = os.path.abspath("data/templates")
     
     # --- Derive potential template filename ---
-    # Extract base name part (e.g., 'ponyxl' from 'pony/pony.safetensors')
-    # This logic might need adjustment based on actual model names/paths
-    model_base_name = os.path.basename(model) # Get 'pony.safetensors'
-    model_name_part = os.path.splitext(model_base_name)[0] # Get 'pony'
-    # If the model path includes directory structure like 'pony/pony.safetensors', 
-    # we might want the directory name instead/as well. Let's try to get the first part.
-    model_path_parts = model.split(os.sep)
-    if len(model_path_parts) > 1:
-        model_name_part = model_path_parts[0] # Use 'pony' from 'pony/...'
+    # This logic relies on the flat model name provided by the reverted get_base_models
+    # Example: model = "ponyDiffusionV6XL_v6StartWithThisOne"
+    model_name_part = model # Use the provided model name directly
     
     # Construct expected filename
     template_filename = f"{model_name_part.lower()}_{type.value.lower()}.json"
     potential_path = os.path.join(template_dir, template_filename)
-    logger.debug(f"Looking for template file: {potential_path}")
+    logger.debug(f"Looking for template file: {potential_path} based on model name '{model}'")
 
     # --- Attempt to load the specific template ---
     if os.path.isfile(potential_path):
@@ -470,8 +440,6 @@ async def get_template_for_model(model: str, type: LoraType) -> Dict[str, Any]:
             raise HTTPException(status_code=500, detail=f"Failed to read template file '{template_filename}'.")
     else:
         # --- Fallback logic (Optional) ---
-        # If specific template not found, maybe load a default? 
-        # Example: Try loading sdxl_char.json or sdxl_style.json as a fallback
         fallback_filename = f"sdxl_{type.value.lower()}.json" # Example fallback
         fallback_path = os.path.join(template_dir, fallback_filename)
         logger.warning(f"Specific template '{template_filename}' not found. Attempting fallback: '{fallback_filename}'")
@@ -485,7 +453,6 @@ async def get_template_for_model(model: str, type: LoraType) -> Dict[str, Any]:
                 return fallback_data
             except Exception as e:
                  logger.error(f"Error reading fallback template file {fallback_filename}: {e}", exc_info=True)
-                 # Fail if fallback also fails to load
                  raise HTTPException(status_code=500, detail=f"Failed to read fallback template file '{fallback_filename}'.")
         else:
              logger.error(f"Specific template '{template_filename}' and fallback '{fallback_filename}' not found in {template_dir}")
