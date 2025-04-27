@@ -29,8 +29,7 @@ import {
   Add as AddIcon,
   ZoomIn as ZoomInIcon,
   ArrowForward as ArrowForwardIcon,
-  Settings as SettingsIcon,
-  Check as CheckIcon
+  Settings as SettingsIcon
 } from '@mui/icons-material';
 import axios from 'axios';
 import { ImageMetadata } from '../types';
